@@ -1,5 +1,6 @@
 # User Profile for Laravel
 
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/syriable/user-profile.svg)](https://packagist.org/packages/syriable/user-profile)
 [![Tests](https://github.com/syriable/user-profile/actions/workflows/run-tests.yml/badge.svg)](https://github.com/syriable/user-profile/actions/workflows/run-tests.yml)
 [![PHPStan](https://github.com/syriable/user-profile/actions/workflows/phpstan.yml/badge.svg)](https://github.com/syriable/user-profile/actions/workflows/phpstan.yml)
 
@@ -734,9 +735,9 @@ With `utf8mb4_unicode_ci`, `École` and `Ecole` compare as equal in unique index
 
 See [`docs/architecture.md`](docs/architecture.md).
 
-## Changelog
+## Changelog and upgrading
 
-See [CHANGELOG](CHANGELOG.md).
+See [CHANGELOG](CHANGELOG.md) for what changed in each release, and [UPGRADING](UPGRADING.md) for upgrade steps. The package follows [Semantic Versioning](https://semver.org).
 
 ## License
 
