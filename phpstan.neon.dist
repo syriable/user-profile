@@ -1,0 +1,10 @@
+parameters:
+    level: max
+    paths:
+        - src
+        - config
+        - database
+        - tests/Fixtures
+    tmpDir: build/phpstan
+    checkOctaneCompatibility: true
+    checkModelProperties: true

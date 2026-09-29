@@ -1,0 +1,127 @@
+name: run-tests
+
+on:
+  push:
+    paths:
+      - '**.php'
+      - '**.stub'
+      - '.github/workflows/run-tests.yml'
+      - 'phpunit.xml.dist'
+      - 'composer.json'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sqlite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: true
+      matrix:
+        php: [8.4, 8.5]
+        laravel: ['12.*', '13.*']
+        stability: [prefer-lowest, prefer-stable]
+        include:
+          - laravel: '12.*'
+            testbench: '10.*'
+            pest: '^4.0'
+          - laravel: '13.*'
+            testbench: '11.*'
+            pest: '^5.0'
+
+    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - SQLite
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, intl
+          coverage: none
+
+      - name: Install dependencies
+        run: |
+          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" "pestphp/pest:${{ matrix.pest }}" "pestphp/pest-plugin-arch:${{ matrix.pest }}" "pestphp/pest-plugin-laravel:${{ matrix.pest }}" --no-interaction --no-update --dev
+          composer update --${{ matrix.stability }} --prefer-dist --no-interaction
+
+      - name: Execute tests
+        run: vendor/bin/pest --ci
+
+  databases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [mysql, mariadb, pgsql]
+
+    name: P8.4 - L13 - ${{ matrix.database }}
+
+    services:
+      mysql:
+        image: ${{ matrix.database == 'mariadb' && 'mariadb:11' || 'mysql:8.4' }}
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: user_profile
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: yes
+          MARIADB_DATABASE: user_profile
+        ports:
+          - 3306:3306
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: user_profile
+        ports:
+          - 5432:5432
+        options: --health-cmd=pg_isready --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.4
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, pdo_mysql, pdo_pgsql, intl
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction
+
+      - name: Wait for MySQL
+        if: matrix.database != 'pgsql'
+        run: |
+          for i in $(seq 1 30); do
+            php -r 'try { new PDO("mysql:host=127.0.0.1;port=3306", "root", ""); exit(0); } catch (Throwable) { exit(1); }' && break
+            sleep 2
+          done
+
+      - name: Execute tests (MySQL / MariaDB)
+        if: matrix.database != 'pgsql'
+        run: vendor/bin/pest --ci
+        env:
+          DB_CONNECTION: ${{ matrix.database }}
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: user_profile
+          DB_USERNAME: root
+          DB_PASSWORD: ''
+
+      - name: Execute tests (PostgreSQL)
+        if: matrix.database == 'pgsql'
+        run: vendor/bin/pest --ci
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: user_profile
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres

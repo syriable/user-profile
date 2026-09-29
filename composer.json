@@ -1,0 +1,81 @@
+{
+    "name": "syriable/user-profile",
+    "description": "Structured professional and academic user profiles for Laravel: languages, skills with alias-aware search, education, certifications and awards.",
+    "keywords": [
+        "syriable",
+        "laravel",
+        "user-profile",
+        "skills",
+        "languages",
+        "education",
+        "certifications",
+        "awards"
+    ],
+    "homepage": "https://github.com/syriable/user-profile",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Syriable",
+            "email": "alkhatib.syr@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/database": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "illuminate/validation": "^12.0|^13.0",
+        "spatie/laravel-package-tools": "^1.92"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.24",
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^4.0|^5.0",
+        "pestphp/pest-plugin-arch": "^4.0|^5.0",
+        "pestphp/pest-plugin-laravel": "^4.0|^5.0",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "rector/rector": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Syriable\\UserProfile\\": "src/",
+            "Syriable\\UserProfile\\Database\\Factories\\": "database/factories/",
+            "Syriable\\UserProfile\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Syriable\\UserProfile\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "analyse": "vendor/bin/phpstan analyse --memory-limit=1G",
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage",
+        "format": "vendor/bin/pint",
+        "refactor": "vendor/bin/rector process"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "phpstan/extension-installer": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Syriable\\UserProfile\\UserProfileServiceProvider"
+            ],
+            "aliases": {
+                "UserProfile": "Syriable\\UserProfile\\Facades\\UserProfile"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
