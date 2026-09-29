@@ -9,14 +9,19 @@ use RuntimeException;
 
 final class DuplicateProfileEntry extends RuntimeException implements UserProfileException
 {
-    public static function for(Model $user, Model $entry): self
+    public static function for(Model $owner, Model $entry): self
     {
         return new self(sprintf(
-            'User [%s] already has %s [%s] on their profile.',
-            self::key($user),
+            'Profile owner [%s] already has %s [%s] on its profile.',
+            self::owner($owner),
             class_basename($entry),
             self::key($entry),
         ));
+    }
+
+    private static function owner(Model $owner): string
+    {
+        return $owner->getMorphClass().':'.self::key($owner);
     }
 
     private static function key(Model $model): string

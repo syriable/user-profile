@@ -5,27 +5,37 @@ declare(strict_types=1);
 namespace Syriable\UserProfile\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Syriable\UserProfile\Support\PackageConfig;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
- * Shared owner relationship for per-user profile records.
+ * Shared polymorphic owner relationship for per-owner profile records.
  *
- * `user_id` is never mass assignable: records are created through the owner's
- * relationship ($user->educations()->create([...])), which sets it safely.
+ * `profileable_type` and `profileable_id` are never mass assignable: records
+ * are created through the owner's relationship
+ * ($owner->educations()->create([...])), which sets both safely.
  */
 trait BelongsToProfileOwner
 {
     /**
-     * @return BelongsTo<Model, $this>
+     * @return MorphTo<Model, $this>
      */
-    public function user(): BelongsTo
+    public function profileable(): MorphTo
     {
-        return $this->belongsTo(PackageConfig::userModel(), 'user_id');
+        return $this->morphTo();
     }
 
-    public function isOwnedBy(Model $user): bool
+    /**
+     * Whether the record belongs to the given owner. Compares the morph type
+     * and key without querying, so an ID shared by two owner types never
+     * matches the wrong owner.
+     */
+    public function isOwnedBy(Model $owner): bool
     {
-        return $this->user()->is($user);
+        $id = $this->getAttribute('profileable_id');
+        $key = $owner->getKey();
+
+        return $this->getAttribute('profileable_type') === $owner->getMorphClass()
+            && is_scalar($id) && is_scalar($key)
+            && (string) $id === (string) $key;
     }
 }

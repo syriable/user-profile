@@ -8,7 +8,7 @@ use Syriable\UserProfile\Exceptions\DuplicateProfileEntry;
 use Syriable\UserProfile\Exceptions\InvalidProficiency;
 use Syriable\UserProfile\Exceptions\ProfileEntryNotFound;
 use Syriable\UserProfile\Models\Language;
-use Syriable\UserProfile\Models\UserLanguage;
+use Syriable\UserProfile\Models\ProfileLanguage;
 
 function arabic(): Language
 {
@@ -69,7 +69,7 @@ describe('catalog', function (): void {
 
         user()->addLanguage($language, 'beginner');
 
-        expect($language->users()->count())->toBe(1);
+        expect($language->profileLanguages()->count())->toBe(1);
     });
 });
 
@@ -81,7 +81,7 @@ describe('user languages', function (): void {
         $pivot = $user->addLanguage(arabic(), isNative: true, isPrimary: true);
         $user->addLanguage($english, 'advanced');
 
-        expect($pivot)->toBeInstanceOf(UserLanguage::class)
+        expect($pivot)->toBeInstanceOf(ProfileLanguage::class)
             ->and($pivot->is_native)->toBeTrue()
             ->and($pivot->is_primary)->toBeTrue()
             ->and($pivot->proficiency_level)->toBeNull()
@@ -200,7 +200,7 @@ describe('user languages', function (): void {
         $advanced->addLanguage($language, 'advanced');
         $beginner->addLanguage($language, 'beginner');
 
-        $names = fn (?string $level) => $native->newQuery()->whereHasLanguage('ar', $level)->orderBy('name')->pluck('name')->all();
+        $names = fn (?string $level) => $native->newQuery()->whereLanguage('ar', $level)->orderBy('name')->pluck('name')->all();
 
         expect($names(null))->toBe(['Advanced', 'Beginner', 'Native'])
             ->and($names('advanced'))->toBe(['Advanced', 'Native']);

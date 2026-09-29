@@ -10,7 +10,7 @@ use Syriable\UserProfile\Models\Skill;
 final readonly class SkillRemoved
 {
     public function __construct(
-        public Model $user,
+        public Model $owner,
         public Skill $skill,
     ) {}
 }

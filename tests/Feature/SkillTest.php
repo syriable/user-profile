@@ -7,9 +7,9 @@ use Syriable\UserProfile\Exceptions\DuplicateProfileEntry;
 use Syriable\UserProfile\Exceptions\InvalidProficiency;
 use Syriable\UserProfile\Exceptions\ProfileEntryNotFound;
 use Syriable\UserProfile\Facades\UserProfile;
+use Syriable\UserProfile\Models\ProfileSkill;
 use Syriable\UserProfile\Models\Skill;
 use Syriable\UserProfile\Models\SkillCategory;
-use Syriable\UserProfile\Models\UserSkill;
 
 describe('catalog', function (): void {
     it('creates canonical skills with a slug and normalized name', function (): void {
@@ -70,7 +70,7 @@ describe('user skills', function (): void {
 
         $pivot = $user->addSkill($skill, proficiency: 'expert', yearsOfExperience: 8, isPrimary: true);
 
-        expect($pivot)->toBeInstanceOf(UserSkill::class)
+        expect($pivot)->toBeInstanceOf(ProfileSkill::class)
             ->and($pivot->proficiency_level)->toBe('expert')
             ->and($pivot->proficiencyLabel())->toBe('Expert')
             ->and($pivot->years_of_experience)->toBe(8)
@@ -193,7 +193,7 @@ describe('user skills', function (): void {
         user('Unrated')->addSkill($skill);
         user('None');
 
-        $names = fn (?string $level) => user('Query')->newQuery()->whereHasSkill('php', $level)->orderBy('name')->pluck('name')->all();
+        $names = fn (?string $level) => user('Query')->newQuery()->whereSkill('php', $level)->orderBy('name')->pluck('name')->all();
 
         expect($names(null))->toBe(['Beginner', 'Expert', 'Unrated'])
             ->and($names('advanced'))->toBe(['Expert']);

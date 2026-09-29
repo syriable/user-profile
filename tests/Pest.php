@@ -2,16 +2,24 @@
 
 declare(strict_types=1);
 
-use Syriable\UserProfile\Tests\CustomUserTestCase;
+use Syriable\UserProfile\Tests\Fixtures\Seller;
 use Syriable\UserProfile\Tests\Fixtures\User;
 use Syriable\UserProfile\Tests\TestCase;
+use Syriable\UserProfile\Tests\UlidOwnerTestCase;
+use Syriable\UserProfile\Tests\UuidOwnerTestCase;
 
 pest()->extend(TestCase::class)->in('Feature', 'Unit', 'Integration');
-pest()->extend(CustomUserTestCase::class)->in('CustomUserModel');
+pest()->extend(UuidOwnerTestCase::class)->in('UuidOwners');
+pest()->extend(UlidOwnerTestCase::class)->in('UlidOwners');
 
 function user(string $name = 'Jane'): User
 {
     return User::query()->create(['name' => $name]);
+}
+
+function seller(string $name = 'Acme'): Seller
+{
+    return Seller::query()->create(['name' => $name]);
 }
 
 /**

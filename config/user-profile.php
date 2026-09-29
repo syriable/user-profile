@@ -5,29 +5,31 @@ use Syriable\UserProfile\Models\Award;
 use Syriable\UserProfile\Models\Certification;
 use Syriable\UserProfile\Models\Education;
 use Syriable\UserProfile\Models\Language;
+use Syriable\UserProfile\Models\ProfileLanguage;
+use Syriable\UserProfile\Models\ProfileSkill;
 use Syriable\UserProfile\Models\Skill;
 use Syriable\UserProfile\Models\SkillAlias;
 use Syriable\UserProfile\Models\SkillCategory;
-use Syriable\UserProfile\Models\UserLanguage;
-use Syriable\UserProfile\Models\UserSkill;
 
 return [
 
     /*
     |--------------------------------------------------------------------------
-    | User model
+    | Profile owner key type
     |--------------------------------------------------------------------------
     |
-    | The Eloquent model that owns profile data. Its table name and primary key
-    | name are read from the model itself, so only the key *type* has to be
-    | declared here. Supported key types: "int", "uuid", "ulid".
+    | Profile data belongs to any Eloquent model using the HasUserProfile
+    | trait, through a polymorphic `profileable_type` / `profileable_id` pair.
+    |
+    | A database column has exactly one native type, so every profile owner
+    | model must use the same primary key type: "int", "uuid" or "ulid". Mixing
+    | integer and string keys in one column breaks on PostgreSQL and prevents
+    | index use on MySQL, so it is rejected at runtime instead of half-working.
+    | Set this before running the migration.
     |
     */
 
-    'user' => [
-        'model' => 'App\\Models\\User',
-        'key_type' => 'int',
-    ],
+    'owner_key_type' => 'int',
 
     /*
     |--------------------------------------------------------------------------
@@ -59,11 +61,11 @@ return [
 
     'models' => [
         'language' => Language::class,
-        'user_language' => UserLanguage::class,
+        'profile_language' => ProfileLanguage::class,
         'skill' => Skill::class,
         'skill_alias' => SkillAlias::class,
         'skill_category' => SkillCategory::class,
-        'user_skill' => UserSkill::class,
+        'profile_skill' => ProfileSkill::class,
         'education' => Education::class,
         'certification' => Certification::class,
         'award' => Award::class,
@@ -81,11 +83,11 @@ return [
 
     'table_names' => [
         'languages' => 'languages',
-        'user_languages' => 'user_languages',
+        'profile_languages' => 'profile_languages',
         'skill_categories' => 'skill_categories',
         'skills' => 'skills',
         'skill_aliases' => 'skill_aliases',
-        'user_skills' => 'user_skills',
+        'profile_skills' => 'profile_skills',
         'educations' => 'educations',
         'certifications' => 'certifications',
         'awards' => 'awards',

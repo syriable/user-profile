@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -25,16 +24,21 @@ return new class extends Migration
                 $table->timestamps();
             });
 
-            Schema::create($this->table('user_languages'), function (Blueprint $table): void {
-                $this->userForeignKey($table);
+            Schema::create($this->table('profile_languages'), function (Blueprint $table): void {
+                $this->owner($table);
                 $table->foreignId('language_id')->constrained($this->table('languages'))->restrictOnDelete();
                 $table->string('proficiency_level', 50)->nullable();
                 $table->boolean('is_native')->default(false);
                 $table->boolean('is_primary')->default(false);
                 $table->timestamps();
 
-                $table->primary(['user_id', 'language_id']);
-                $table->index('language_id');
+                // One row per owner and language. Also serves "does this owner
+                // speak X" lookups and loading an owner's languages.
+                $table->primary(['profileable_type', 'profileable_id', 'language_id'], $this->table('profile_languages').'_primary');
+
+                // Serves owner filtering driven from the language side and the
+                // language_id foreign key.
+                $table->index(['language_id', 'profileable_type', 'profileable_id'], $this->table('profile_languages').'_language_owner_index');
             });
         }
 
@@ -69,23 +73,28 @@ return new class extends Migration
                 $table->unique(['skill_id', 'normalized_alias', 'locale']);
             });
 
-            Schema::create($this->table('user_skills'), function (Blueprint $table): void {
-                $this->userForeignKey($table);
+            Schema::create($this->table('profile_skills'), function (Blueprint $table): void {
+                $this->owner($table);
                 $table->foreignId('skill_id')->constrained($this->table('skills'))->restrictOnDelete();
                 $table->string('proficiency_level', 50)->nullable();
                 $table->unsignedTinyInteger('years_of_experience')->nullable();
                 $table->boolean('is_primary')->default(false);
                 $table->timestamps();
 
-                $table->primary(['user_id', 'skill_id']);
-                $table->index('skill_id');
+                // One row per owner and skill. Also serves "does this owner have
+                // skill X" lookups and loading an owner's skills.
+                $table->primary(['profileable_type', 'profileable_id', 'skill_id'], $this->table('profile_skills').'_primary');
+
+                // Serves owner filtering driven from the skill side and the
+                // skill_id foreign key.
+                $table->index(['skill_id', 'profileable_type', 'profileable_id'], $this->table('profile_skills').'_skill_owner_index');
             });
         }
 
         if ($this->enabled('education')) {
             Schema::create($this->table('educations'), function (Blueprint $table): void {
                 $table->id();
-                $this->userForeignKey($table);
+                $this->owner($table);
                 $table->string('type', 100)->nullable();
                 $table->string('institution_name');
                 $table->string('degree')->nullable();
@@ -99,14 +108,14 @@ return new class extends Migration
                 $table->text('description')->nullable();
                 $table->timestamps();
 
-                $table->index('user_id');
+                $table->index(['profileable_type', 'profileable_id'], $table->getTable().'_owner_index');
             });
         }
 
         if ($this->enabled('certifications')) {
             Schema::create($this->table('certifications'), function (Blueprint $table): void {
                 $table->id();
-                $this->userForeignKey($table);
+                $this->owner($table);
                 $table->string('name');
                 $table->string('issuing_organization');
                 $table->date('issue_date')->nullable();
@@ -116,14 +125,14 @@ return new class extends Migration
                 $table->text('description')->nullable();
                 $table->timestamps();
 
-                $table->index('user_id');
+                $table->index(['profileable_type', 'profileable_id'], $table->getTable().'_owner_index');
             });
         }
 
         if ($this->enabled('awards')) {
             Schema::create($this->table('awards'), function (Blueprint $table): void {
                 $table->id();
-                $this->userForeignKey($table);
+                $this->owner($table);
                 $table->string('title');
                 $table->string('issuer')->nullable();
                 $table->date('date_received')->nullable();
@@ -131,14 +140,14 @@ return new class extends Migration
                 $table->string('url', 2048)->nullable();
                 $table->timestamps();
 
-                $table->index('user_id');
+                $table->index(['profileable_type', 'profileable_id'], $table->getTable().'_owner_index');
             });
         }
     }
 
     public function down(): void
     {
-        foreach (['awards', 'certifications', 'educations', 'user_skills', 'skill_aliases', 'skills', 'skill_categories', 'user_languages', 'languages'] as $key) {
+        foreach (['awards', 'certifications', 'educations', 'profile_skills', 'skill_aliases', 'skills', 'skill_categories', 'profile_languages', 'languages'] as $key) {
             Schema::dropIfExists($this->table($key));
         }
     }
@@ -154,22 +163,23 @@ return new class extends Migration
     }
 
     /**
-     * Adds a user_id column whose type, target table and key follow the
-     * configured user model, cascading deletes of the user's own records.
+     * Adds the polymorphic owner columns.
+     *
+     * The ID column type comes from `owner_key_type` rather than morphs(),
+     * which would follow the application's global Schema::morphUsing*()
+     * default. A column has one native type, so every owner model must use
+     * the configured key type. There is no foreign key: a polymorphic column
+     * can't reference several tables, so owner deletion is handled by the
+     * HasUserProfile trait.
      */
-    private function userForeignKey(Blueprint $table): void
+    private function owner(Blueprint $table): void
     {
-        $model = config('user-profile.user.model');
+        $table->string('profileable_type');
 
-        /** @var Model $user */
-        $user = new $model;
-
-        $column = match (config('user-profile.user.key_type', 'int')) {
-            'uuid' => $table->foreignUuid('user_id'),
-            'ulid' => $table->foreignUlid('user_id'),
-            default => $table->foreignId('user_id'),
+        match (config('user-profile.owner_key_type', 'int')) {
+            'uuid' => $table->uuid('profileable_id'),
+            'ulid' => $table->ulid('profileable_id'),
+            default => $table->unsignedBigInteger('profileable_id'),
         };
-
-        $column->constrained($user->getTable(), $user->getKeyName())->cascadeOnDelete();
     }
 };

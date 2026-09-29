@@ -17,7 +17,7 @@ it('publishes the configuration file', function (): void {
     $this->artisan('vendor:publish', ['--tag' => 'user-profile-config'])->assertSuccessful();
 
     expect($path)->toBeFile()
-        ->and(require $path)->toHaveKeys(['user', 'features', 'models', 'table_names', 'languages', 'skills', 'search', 'validation']);
+        ->and(require $path)->toHaveKeys(['owner_key_type', 'features', 'models', 'table_names', 'languages', 'skills', 'search', 'validation']);
 
     File::delete($path);
 });
@@ -46,12 +46,12 @@ it('registers the install command', function (): void {
 
 it('creates every table when all features are enabled', function (string $table): void {
     expect(Schema::hasTable($table))->toBeTrue();
-})->with(['languages', 'user_languages', 'skill_categories', 'skills', 'skill_aliases', 'user_skills', 'educations', 'certifications', 'awards']);
+})->with(['languages', 'profile_languages', 'skill_categories', 'skills', 'skill_aliases', 'profile_skills', 'educations', 'certifications', 'awards']);
 
 it('uses configured table names', function (): void {
     remigrate(function (): void {
         config()->set('user-profile.table_names.skills', 'catalog_skills');
-        config()->set('user-profile.table_names.user_skills', 'member_skills');
+        config()->set('user-profile.table_names.profile_skills', 'member_skills');
     });
 
     $skill = Skill::query()->create(['name' => 'PHP']);

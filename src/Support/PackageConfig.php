@@ -45,28 +45,18 @@ final class PackageConfig
     }
 
     /**
-     * @return class-string<Model>
+     * The single primary key type shared by every profile owner model.
+     *
+     * @return 'int'|'uuid'|'ulid'
      */
-    public static function userModel(): string
+    public static function ownerKeyType(): string
     {
-        $model = config('user-profile.user.model');
+        $type = config('user-profile.owner_key_type', 'int');
 
-        if (! is_string($model) || ! is_a($model, Model::class, true)) {
-            throw new InvalidArgumentException('The [user-profile.user.model] configuration value must be an Eloquent model class.');
-        }
-
-        return $model;
-    }
-
-    public static function userKeyType(): string
-    {
-        $type = config('user-profile.user.key_type', 'int');
-
-        if (! in_array($type, ['int', 'uuid', 'ulid'], true)) {
-            throw new InvalidArgumentException('The [user-profile.user.key_type] configuration value must be one of: int, uuid, ulid.');
-        }
-
-        return $type;
+        return match ($type) {
+            'int', 'uuid', 'ulid' => $type,
+            default => throw new InvalidArgumentException('The [user-profile.owner_key_type] configuration value must be one of: int, uuid, ulid.'),
+        };
     }
 
     public static function featureEnabled(Feature $feature): bool

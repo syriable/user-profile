@@ -10,7 +10,7 @@ use Syriable\UserProfile\Models\Language;
 final readonly class LanguageRemoved
 {
     public function __construct(
-        public Model $user,
+        public Model $owner,
         public Language $language,
     ) {}
 }

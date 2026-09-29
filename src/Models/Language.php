@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Syriable\UserProfile\Concerns\ValidatesAttributes;
 use Syriable\UserProfile\Database\Factories\LanguageFactory;
@@ -17,7 +17,7 @@ use Syriable\UserProfile\Support\Normalizer;
 use Syriable\UserProfile\Support\PackageConfig;
 
 /**
- * A reusable language catalog entry, independent of any user's proficiency.
+ * A reusable language catalog entry, independent of any profile owner's proficiency.
  *
  * @property int $id
  * @property string $name
@@ -57,14 +57,13 @@ class Language extends Model
     }
 
     /**
-     * @return BelongsToMany<Model, $this, UserLanguage>
+     * Every profile entry, across all owner types, that uses this language.
+     *
+     * @return HasMany<ProfileLanguage, $this>
      */
-    public function users(): BelongsToMany
+    public function profileLanguages(): HasMany
     {
-        return $this->belongsToMany(PackageConfig::userModel(), PackageConfig::table('user_languages'), 'language_id', 'user_id')
-            ->using(PackageConfig::model('user_language', UserLanguage::class))
-            ->withPivot(['proficiency_level', 'is_native', 'is_primary'])
-            ->withTimestamps();
+        return $this->hasMany(PackageConfig::model('profile_language', ProfileLanguage::class), 'language_id');
     }
 
     /**
