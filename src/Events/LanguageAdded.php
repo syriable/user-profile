@@ -6,13 +6,13 @@ namespace Syriable\UserProfile\Events;
 
 use Illuminate\Database\Eloquent\Model;
 use Syriable\UserProfile\Models\Language;
-use Syriable\UserProfile\Models\UserLanguage;
+use Syriable\UserProfile\Models\ProfileLanguage;
 
 final readonly class LanguageAdded
 {
     public function __construct(
-        public Model $user,
+        public Model $owner,
         public Language $language,
-        public UserLanguage $pivot,
+        public ProfileLanguage $pivot,
     ) {}
 }

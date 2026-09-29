@@ -13,17 +13,24 @@ it('never mass assigns the owner', function (string $model, array $attributes): 
     $owner = user('Owner');
     $victim = user('Victim');
 
-    $record = $owner->{$model}()->create($attributes + ['user_id' => $victim->id]);
+    $record = $owner->{$model}()->create($attributes + [
+        'profileable_type' => $victim->getMorphClass(),
+        'profileable_id' => $victim->id,
+    ]);
 
-    expect($record->user_id)->toBe($owner->id);
+    expect($record->profileable_id)->toBe($owner->id)
+        ->and($record->isOwnedBy($owner))->toBeTrue()
+        ->and($record->isOwnedBy($victim))->toBeFalse();
 })->with([
     'education' => ['educations', ['institution_name' => 'University']],
     'certification' => ['certifications', ['name' => 'Cert', 'issuing_organization' => 'Org']],
     'award' => ['awards', ['title' => 'Award']],
 ]);
 
-it('cannot create an owner-less record through mass assignment', function (string $model, array $attributes): void {
-    $model::query()->create($attributes + ['user_id' => user()->id]);
+it('cannot assign an owner through mass assignment', function (string $model, array $attributes): void {
+    $owner = user();
+
+    $model::query()->create($attributes + ['profileable_type' => $owner->getMorphClass(), 'profileable_id' => $owner->id]);
 })->with([
     [Education::class, ['institution_name' => 'University']],
     [Certification::class, ['name' => 'Cert', 'issuing_organization' => 'Org']],

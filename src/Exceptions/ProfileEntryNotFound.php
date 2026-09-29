@@ -9,11 +9,11 @@ use RuntimeException;
 
 final class ProfileEntryNotFound extends RuntimeException implements UserProfileException
 {
-    public static function onProfile(Model $user, Model $entry): self
+    public static function onProfile(Model $owner, Model $entry): self
     {
         return new self(sprintf(
-            'User [%s] does not have %s [%s] on their profile.',
-            self::key($user),
+            'Profile owner [%s] does not have %s [%s] on its profile.',
+            self::owner($owner),
             class_basename($entry),
             self::key($entry),
         ));
@@ -25,6 +25,11 @@ final class ProfileEntryNotFound extends RuntimeException implements UserProfile
     public static function inCatalog(string $model, int|string $identifier): self
     {
         return new self(sprintf('No %s matches [%s].', class_basename($model), (string) $identifier));
+    }
+
+    private static function owner(Model $owner): string
+    {
+        return $owner->getMorphClass().':'.self::key($owner);
     }
 
     private static function key(Model $model): string

@@ -14,8 +14,8 @@ use Syriable\UserProfile\Exceptions\InvalidProficiency;
 use Syriable\UserProfile\Exceptions\ProfileEntryNotFound;
 
 /**
- * Shared, transactional write logic for the user ⇄ catalog pivot tables
- * (user_languages, user_skills).
+ * Shared, transactional write logic for the owner ⇄ catalog pivot tables
+ * (profile_languages, profile_skills).
  *
  * @internal
  */
@@ -32,11 +32,11 @@ final class ProfileCatalog
      */
     public static function attach(BelongsToMany $relation, Model $entry, array $attributes): Pivot
     {
-        $user = $relation->getParent();
+        $owner = $relation->getParent();
 
-        return $user->getConnection()->transaction(function () use ($relation, $user, $entry, $attributes): Pivot {
+        return $owner->getConnection()->transaction(function () use ($relation, $owner, $entry, $attributes): Pivot {
             if (self::has($relation, $entry)) {
-                throw DuplicateProfileEntry::for($user, $entry);
+                throw DuplicateProfileEntry::for($owner, $entry);
             }
 
             if (($attributes['is_primary'] ?? false) === true) {
@@ -46,7 +46,7 @@ final class ProfileCatalog
             try {
                 $relation->attach($entry->getKey(), $attributes);
             } catch (UniqueConstraintViolationException) {
-                throw DuplicateProfileEntry::for($user, $entry);
+                throw DuplicateProfileEntry::for($owner, $entry);
             }
 
             return self::pivot($relation, $entry);
@@ -64,11 +64,11 @@ final class ProfileCatalog
      */
     public static function update(BelongsToMany $relation, Model $entry, array $attributes): Pivot
     {
-        $user = $relation->getParent();
+        $owner = $relation->getParent();
 
-        return $user->getConnection()->transaction(function () use ($relation, $user, $entry, $attributes): Pivot {
+        return $owner->getConnection()->transaction(function () use ($relation, $owner, $entry, $attributes): Pivot {
             if (! self::has($relation, $entry)) {
-                throw ProfileEntryNotFound::onProfile($user, $entry);
+                throw ProfileEntryNotFound::onProfile($owner, $entry);
             }
 
             if (($attributes['is_primary'] ?? false) === true) {
@@ -108,7 +108,7 @@ final class ProfileCatalog
     }
 
     /**
-     * Validates and normalizes attributes written to a user ⇄ catalog pivot.
+     * Validates and normalizes attributes written to a owner ⇄ catalog pivot.
      *
      * @param  array<string, mixed>  $attributes
      * @param  list<string>  $allowed

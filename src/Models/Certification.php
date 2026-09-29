@@ -15,13 +15,14 @@ use Syriable\UserProfile\Database\Factories\CertificationFactory;
 use Syriable\UserProfile\Support\PackageConfig;
 
 /**
- * A professional certification claimed by a user.
+ * A professional certification claimed by a profile owner.
  *
  * A credential ID or URL is stored as provided; the package never treats a
  * certification as verified.
  *
  * @property int $id
- * @property int|string $user_id
+ * @property string $profileable_type
+ * @property int|string $profileable_id
  * @property string $name
  * @property string $issuing_organization
  * @property Carbon|null $issue_date

@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -76,14 +75,13 @@ class Skill extends Model
     }
 
     /**
-     * @return BelongsToMany<Model, $this, UserSkill>
+     * Every profile entry, across all owner types, that uses this skill.
+     *
+     * @return HasMany<ProfileSkill, $this>
      */
-    public function users(): BelongsToMany
+    public function profileSkills(): HasMany
     {
-        return $this->belongsToMany(PackageConfig::userModel(), PackageConfig::table('user_skills'), 'skill_id', 'user_id')
-            ->using(PackageConfig::model('user_skill', UserSkill::class))
-            ->withPivot(['proficiency_level', 'years_of_experience', 'is_primary'])
-            ->withTimestamps();
+        return $this->hasMany(PackageConfig::model('profile_skill', ProfileSkill::class), 'skill_id');
     }
 
     /**

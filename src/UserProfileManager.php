@@ -6,6 +6,7 @@ namespace Syriable\UserProfile;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Syriable\UserProfile\Contracts\LanguageSearchResolver;
 use Syriable\UserProfile\Contracts\SkillSearchResolver;
 use Syriable\UserProfile\Enums\Feature;
@@ -74,6 +75,51 @@ final readonly class UserProfileManager
             partial: $this->usesPartialMatching($term, $partial),
             includeInactive: $includeInactive,
         ));
+    }
+
+    /**
+     * Resolves a human-friendly term to the catalog skills it names: an exact
+     * (normalized) canonical name, alias or slug, including inactive skills.
+     *
+     * Uses the registered skill search resolver in exact mode, so aliases are
+     * resolved in one place only. An ambiguous alias returns every skill it
+     * names; an unknown term returns an empty collection.
+     *
+     * @return EloquentCollection<int, Skill>
+     */
+    public function resolveSkills(string $term): EloquentCollection
+    {
+        $model = PackageConfig::model('skill', Skill::class);
+        $skill = new $model;
+        $slug = mb_strtolower(trim($term));
+
+        if ($slug === '') {
+            return $skill->newCollection();
+        }
+
+        $matches = $this->searchSkills($term, partial: false, includeInactive: true)
+            ->reorder()
+            ->select($skill->getQualifiedKeyName());
+
+        return $model::query()
+            ->where('slug', $slug)
+            ->orWhereIn($skill->getKeyName(), $matches)
+            ->orderBy($skill->getKeyName())
+            ->get();
+    }
+
+    /**
+     * Resolves a human-friendly term to the catalog languages it names: an
+     * exact code, ISO 639 code, name or native name, including inactive
+     * languages. An unknown term returns an empty collection.
+     *
+     * @return EloquentCollection<int, Language>
+     */
+    public function resolveLanguages(string $term): EloquentCollection
+    {
+        $query = $this->searchLanguages($term, partial: false, includeInactive: true)->reorder();
+
+        return $query->orderBy($query->getModel()->getQualifiedKeyName())->get();
     }
 
     /**

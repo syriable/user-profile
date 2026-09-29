@@ -184,8 +184,8 @@ it('supports the documented popularity resolver example', function (): void {
         public function search(SkillSearchCriteria $criteria): Builder
         {
             return parent::search($criteria)->reorder()
-                ->withCount('users')
-                ->orderByDesc('users_count')
+                ->withCount('profileSkills')
+                ->orderByDesc('profile_skills_count')
                 ->orderBy('name');
         }
     };

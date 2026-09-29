@@ -23,7 +23,7 @@ it('dispatches skill events', function (): void {
     $user->removeSkill($skill);
     $user->removeSkill($skill);
 
-    Event::assertDispatched(SkillAdded::class, fn (SkillAdded $event) => $event->user->is($user) && $event->skill->is($skill) && $event->pivot->proficiency_level === 'advanced');
+    Event::assertDispatched(SkillAdded::class, fn (SkillAdded $event) => $event->owner->is($user) && $event->skill->is($skill) && $event->pivot->proficiency_level === 'advanced');
     Event::assertDispatched(SkillUpdated::class, fn (SkillUpdated $event) => $event->pivot->proficiency_level === 'expert');
     Event::assertDispatchedTimes(SkillRemoved::class, 1);
 });

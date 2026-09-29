@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Syriable\UserProfile\Concerns;
 
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Facades\Event;
 use Syriable\UserProfile\Enums\Feature;
 use Syriable\UserProfile\Events\LanguageAdded;
@@ -17,6 +15,7 @@ use Syriable\UserProfile\Events\LanguageUpdated;
 use Syriable\UserProfile\Events\SkillAdded;
 use Syriable\UserProfile\Events\SkillRemoved;
 use Syriable\UserProfile\Events\SkillUpdated;
+use Syriable\UserProfile\Exceptions\AmbiguousProfileEntry;
 use Syriable\UserProfile\Exceptions\DuplicateProfileEntry;
 use Syriable\UserProfile\Exceptions\InvalidProficiency;
 use Syriable\UserProfile\Exceptions\ProfileEntryNotFound;
@@ -25,78 +24,136 @@ use Syriable\UserProfile\Models\Award;
 use Syriable\UserProfile\Models\Certification;
 use Syriable\UserProfile\Models\Education;
 use Syriable\UserProfile\Models\Language;
+use Syriable\UserProfile\Models\ProfileLanguage;
+use Syriable\UserProfile\Models\ProfileSkill;
 use Syriable\UserProfile\Models\Skill;
-use Syriable\UserProfile\Models\UserLanguage;
-use Syriable\UserProfile\Models\UserSkill;
-use Syriable\UserProfile\Support\LanguageTag;
 use Syriable\UserProfile\Support\PackageConfig;
 use Syriable\UserProfile\Support\ProfileCatalog;
+use Syriable\UserProfile\Support\ProfileOwner;
 
 /**
- * Adds profile relationships and helpers to an application's user model.
+ * Makes any Eloquent model a profile owner: languages, skills, education,
+ * certifications and awards, linked through polymorphic
+ * `profileable_type` / `profileable_id` columns.
  *
- * Languages and skills accept a model instance, a primary key, or a string
- * identifier (the language `code` or the skill `slug`).
+ * Languages and skills accept a model, a primary key, or a human-friendly
+ * term. For writes, a term must name exactly one catalog entry; see
+ * UserProfile::resolveSkills() and UserProfile::resolveLanguages().
  *
  * @mixin Model
  */
 trait HasUserProfile
 {
+    use FiltersProfileOwners;
+
     private const array PROFILE_LANGUAGE_ATTRIBUTES = ['proficiency_level', 'is_native', 'is_primary'];
 
     private const array PROFILE_SKILL_ATTRIBUTES = ['proficiency_level', 'years_of_experience', 'is_primary'];
 
     /**
-     * @return BelongsToMany<Language, $this, UserLanguage>
+     * Profile rows have no foreign key to their owner (a polymorphic column
+     * can't reference several tables), so they are removed when the owner is
+     * deleted. Soft-deleted owners keep their profile until force deleted.
      */
-    public function languages(): BelongsToMany
+    public static function bootHasUserProfile(): void
     {
-        return $this->belongsToMany(PackageConfig::model('language', Language::class), PackageConfig::table('user_languages'), 'user_id', 'language_id')
-            ->using(PackageConfig::model('user_language', UserLanguage::class))
-            ->withPivot(['proficiency_level', 'is_native', 'is_primary'])
+        static::deleted(function (Model $owner): void {
+            if (method_exists($owner, 'isForceDeleting') && ! $owner->isForceDeleting()) {
+                return;
+            }
+
+            if (method_exists($owner, 'deleteProfile')) {
+                $owner->deleteProfile();
+            }
+        });
+    }
+
+    /**
+     * @return MorphToMany<Language, $this, ProfileLanguage>
+     */
+    public function languages(): MorphToMany
+    {
+        ProfileOwner::ensureCompatible($this);
+
+        return $this->morphToMany(PackageConfig::model('language', Language::class), 'profileable', PackageConfig::table('profile_languages'), 'profileable_id', 'language_id')
+            ->using(PackageConfig::model('profile_language', ProfileLanguage::class))
+            ->withPivot(self::PROFILE_LANGUAGE_ATTRIBUTES)
             ->withTimestamps();
     }
 
     /**
-     * @return BelongsToMany<Skill, $this, UserSkill>
+     * @return MorphToMany<Skill, $this, ProfileSkill>
      */
-    public function skills(): BelongsToMany
+    public function skills(): MorphToMany
     {
-        return $this->belongsToMany(PackageConfig::model('skill', Skill::class), PackageConfig::table('user_skills'), 'user_id', 'skill_id')
-            ->using(PackageConfig::model('user_skill', UserSkill::class))
-            ->withPivot(['proficiency_level', 'years_of_experience', 'is_primary'])
+        ProfileOwner::ensureCompatible($this);
+
+        return $this->morphToMany(PackageConfig::model('skill', Skill::class), 'profileable', PackageConfig::table('profile_skills'), 'profileable_id', 'skill_id')
+            ->using(PackageConfig::model('profile_skill', ProfileSkill::class))
+            ->withPivot(self::PROFILE_SKILL_ATTRIBUTES)
             ->withTimestamps();
     }
 
     /**
-     * @return HasMany<Education, $this>
+     * The owner's language pivot rows, without joining the catalog.
+     *
+     * @return MorphMany<ProfileLanguage, $this>
      */
-    public function educations(): HasMany
+    public function profileLanguages(): MorphMany
     {
-        return $this->hasMany(PackageConfig::model('education', Education::class), 'user_id');
+        ProfileOwner::ensureCompatible($this);
+
+        return $this->morphMany(PackageConfig::model('profile_language', ProfileLanguage::class), 'profileable');
     }
 
     /**
-     * @return HasMany<Certification, $this>
+     * The owner's skill pivot rows, without joining the catalog.
+     *
+     * @return MorphMany<ProfileSkill, $this>
      */
-    public function certifications(): HasMany
+    public function profileSkills(): MorphMany
     {
-        return $this->hasMany(PackageConfig::model('certification', Certification::class), 'user_id');
+        ProfileOwner::ensureCompatible($this);
+
+        return $this->morphMany(PackageConfig::model('profile_skill', ProfileSkill::class), 'profileable');
     }
 
     /**
-     * @return HasMany<Award, $this>
+     * @return MorphMany<Education, $this>
      */
-    public function awards(): HasMany
+    public function educations(): MorphMany
     {
-        return $this->hasMany(PackageConfig::model('award', Award::class), 'user_id');
+        ProfileOwner::ensureCompatible($this);
+
+        return $this->morphMany(PackageConfig::model('education', Education::class), 'profileable');
+    }
+
+    /**
+     * @return MorphMany<Certification, $this>
+     */
+    public function certifications(): MorphMany
+    {
+        ProfileOwner::ensureCompatible($this);
+
+        return $this->morphMany(PackageConfig::model('certification', Certification::class), 'profileable');
+    }
+
+    /**
+     * @return MorphMany<Award, $this>
+     */
+    public function awards(): MorphMany
+    {
+        ProfileOwner::ensureCompatible($this);
+
+        return $this->morphMany(PackageConfig::model('award', Award::class), 'profileable');
     }
 
     /**
      * Adds a language to the profile. Setting $isPrimary unsets the flag on
-     * every other language of this user.
+     * every other language of this owner.
      *
      * @throws DuplicateProfileEntry
+     * @throws AmbiguousProfileEntry
      * @throws InvalidProficiency
      */
     public function addLanguage(
@@ -104,12 +161,12 @@ trait HasUserProfile
         ?string $proficiency = null,
         bool $isNative = false,
         bool $isPrimary = false,
-    ): UserLanguage {
+    ): ProfileLanguage {
         PackageConfig::ensureFeatureEnabled(Feature::Languages);
 
         $language = $this->resolveProfileLanguage($language);
 
-        /** @var UserLanguage $pivot */
+        /** @var ProfileLanguage $pivot */
         $pivot = ProfileCatalog::attach($this->languages(), $language, ProfileCatalog::attributes(
             ['proficiency_level' => $proficiency, 'is_native' => $isNative, 'is_primary' => $isPrimary],
             self::PROFILE_LANGUAGE_ATTRIBUTES,
@@ -127,15 +184,16 @@ trait HasUserProfile
      * @param  array{proficiency_level?: string|null, is_native?: bool, is_primary?: bool}  $attributes
      *
      * @throws ProfileEntryNotFound
+     * @throws AmbiguousProfileEntry
      * @throws InvalidProficiency
      */
-    public function updateLanguage(Language|int|string $language, array $attributes): UserLanguage
+    public function updateLanguage(Language|int|string $language, array $attributes): ProfileLanguage
     {
         PackageConfig::ensureFeatureEnabled(Feature::Languages);
 
         $language = $this->resolveProfileLanguage($language);
 
-        /** @var UserLanguage $pivot */
+        /** @var ProfileLanguage $pivot */
         $pivot = ProfileCatalog::update($this->languages(), $language, ProfileCatalog::attributes(
             $attributes,
             self::PROFILE_LANGUAGE_ATTRIBUTES,
@@ -165,18 +223,23 @@ trait HasUserProfile
         return $removed;
     }
 
+    /**
+     * Whether the owner has the language. A term naming several languages
+     * matches when the owner has any of them.
+     */
     public function hasLanguage(Language|int|string $language): bool
     {
-        $language = $this->resolveProfileLanguage($language, orFail: false);
-
-        return $language !== null && ProfileCatalog::has($this->languages(), $language);
+        return $this->profileLanguages()
+            ->whereIn('language_id', $this->profileLanguageIds([$language]))
+            ->exists();
     }
 
     /**
      * Adds a skill to the profile. Setting $isPrimary unsets the flag on
-     * every other skill of this user.
+     * every other skill of this owner.
      *
      * @throws DuplicateProfileEntry
+     * @throws AmbiguousProfileEntry
      * @throws InvalidProficiency
      */
     public function addSkill(
@@ -184,12 +247,12 @@ trait HasUserProfile
         ?string $proficiency = null,
         ?int $yearsOfExperience = null,
         bool $isPrimary = false,
-    ): UserSkill {
+    ): ProfileSkill {
         PackageConfig::ensureFeatureEnabled(Feature::Skills);
 
         $skill = $this->resolveProfileSkill($skill);
 
-        /** @var UserSkill $pivot */
+        /** @var ProfileSkill $pivot */
         $pivot = ProfileCatalog::attach($this->skills(), $skill, ProfileCatalog::attributes(
             ['proficiency_level' => $proficiency, 'years_of_experience' => $yearsOfExperience, 'is_primary' => $isPrimary],
             self::PROFILE_SKILL_ATTRIBUTES,
@@ -207,15 +270,16 @@ trait HasUserProfile
      * @param  array{proficiency_level?: string|null, years_of_experience?: int|null, is_primary?: bool}  $attributes
      *
      * @throws ProfileEntryNotFound
+     * @throws AmbiguousProfileEntry
      * @throws InvalidProficiency
      */
-    public function updateSkill(Skill|int|string $skill, array $attributes): UserSkill
+    public function updateSkill(Skill|int|string $skill, array $attributes): ProfileSkill
     {
         PackageConfig::ensureFeatureEnabled(Feature::Skills);
 
         $skill = $this->resolveProfileSkill($skill);
 
-        /** @var UserSkill $pivot */
+        /** @var ProfileSkill $pivot */
         $pivot = ProfileCatalog::update($this->skills(), $skill, ProfileCatalog::attributes(
             $attributes,
             self::PROFILE_SKILL_ATTRIBUTES,
@@ -245,95 +309,101 @@ trait HasUserProfile
         return $removed;
     }
 
+    /**
+     * Whether the owner has the skill. A term naming several skills (an
+     * ambiguous alias) matches when the owner has any of them.
+     */
     public function hasSkill(Skill|int|string $skill): bool
     {
-        $skill = $this->resolveProfileSkill($skill, orFail: false);
-
-        return $skill !== null && ProfileCatalog::has($this->skills(), $skill);
+        return $this->profileSkills()
+            ->whereIn('skill_id', $this->profileSkillIds([$skill]))
+            ->exists();
     }
 
     /**
-     * Users who have the skill, optionally at or above a proficiency level.
+     * Deletes all of this owner's profile data: pivot rows, education,
+     * certifications and awards. Catalog entries are untouched.
      *
-     * @param  Builder<static>  $query
+     * Runs automatically when the owner model is deleted (or force deleted,
+     * for soft-deleting owners). Call it yourself before deleting owners with
+     * a query builder delete, which fires no model events.
      */
-    public function scopeWhereHasSkill(Builder $query, Skill|int|string $skill, ?string $minimumProficiency = null): void
+    public function deleteProfile(): void
     {
-        $skill = $this->resolveProfileSkill($skill);
-        $pivotTable = PackageConfig::table('user_skills');
+        $this->getConnection()->transaction(function (): void {
+            if (PackageConfig::featureEnabled(Feature::Languages)) {
+                $this->profileLanguages()->toBase()->delete();
+            }
 
-        $query->whereHas('skills', fn (Builder $skills) => $skills
-            ->whereKey($skill->getKey())
-            ->when($minimumProficiency !== null, fn (Builder $skills) => $skills->whereIn(
-                "{$pivotTable}.proficiency_level",
-                UserProfile::skillProficiency()->atLeast((string) $minimumProficiency),
-            )));
+            if (PackageConfig::featureEnabled(Feature::Skills)) {
+                $this->profileSkills()->toBase()->delete();
+            }
+
+            if (PackageConfig::featureEnabled(Feature::Education)) {
+                $this->educations()->toBase()->delete();
+            }
+
+            if (PackageConfig::featureEnabled(Feature::Certifications)) {
+                $this->certifications()->toBase()->delete();
+            }
+
+            if (PackageConfig::featureEnabled(Feature::Awards)) {
+                $this->awards()->toBase()->delete();
+            }
+        });
     }
 
     /**
-     * Users who speak the language, optionally at or above a proficiency
-     * level. Native speakers always match a proficiency constraint.
+     * Resolves a language for a write, which must name exactly one entry.
      *
-     * @param  Builder<static>  $query
+     * @throws ProfileEntryNotFound
+     * @throws AmbiguousProfileEntry
      */
-    public function scopeWhereHasLanguage(Builder $query, Language|int|string $language, ?string $minimumProficiency = null): void
+    protected function resolveProfileLanguage(Language|int|string $language): Language
     {
-        $language = $this->resolveProfileLanguage($language);
-        $pivotTable = PackageConfig::table('user_languages');
-
-        $query->whereHas('languages', fn (Builder $languages) => $languages
-            ->whereKey($language->getKey())
-            ->when($minimumProficiency !== null, fn (Builder $languages) => $languages->getQuery()->where(
-                fn (QueryBuilder $level) => $level
-                    ->where("{$pivotTable}.is_native", true)
-                    ->orWhereIn(
-                        "{$pivotTable}.proficiency_level",
-                        UserProfile::languageProficiency()->atLeast((string) $minimumProficiency),
-                    ),
-            )));
-    }
-
-    /**
-     * @return ($orFail is true ? Language : Language|null)
-     */
-    protected function resolveProfileLanguage(Language|int|string $language, bool $orFail = true): ?Language
-    {
-        $model = PackageConfig::model('language', Language::class);
-
         if ($language instanceof Language) {
             return $language;
         }
 
-        $resolved = is_int($language)
-            ? $model::query()->find($language)
-            : $model::query()->where('code', LanguageTag::canonicalize($language))->first();
+        $model = PackageConfig::model('language', Language::class);
 
-        if ($resolved === null && $orFail) {
-            throw ProfileEntryNotFound::inCatalog($model, $language);
+        if (is_int($language)) {
+            return $model::query()->find($language) ?? throw ProfileEntryNotFound::inCatalog($model, $language);
         }
 
-        return $resolved;
+        $candidates = UserProfile::resolveLanguages($language);
+
+        return match ($candidates->count()) {
+            0 => throw ProfileEntryNotFound::inCatalog($model, $language),
+            1 => $candidates->firstOrFail(),
+            default => throw new AmbiguousProfileEntry($language, $candidates),
+        };
     }
 
     /**
-     * @return ($orFail is true ? Skill : Skill|null)
+     * Resolves a skill for a write, which must name exactly one entry.
+     *
+     * @throws ProfileEntryNotFound
+     * @throws AmbiguousProfileEntry
      */
-    protected function resolveProfileSkill(Skill|int|string $skill, bool $orFail = true): ?Skill
+    protected function resolveProfileSkill(Skill|int|string $skill): Skill
     {
-        $model = PackageConfig::model('skill', Skill::class);
-
         if ($skill instanceof Skill) {
             return $skill;
         }
 
-        $resolved = is_int($skill)
-            ? $model::query()->find($skill)
-            : $model::query()->where('slug', $skill)->first();
+        $model = PackageConfig::model('skill', Skill::class);
 
-        if ($resolved === null && $orFail) {
-            throw ProfileEntryNotFound::inCatalog($model, $skill);
+        if (is_int($skill)) {
+            return $model::query()->find($skill) ?? throw ProfileEntryNotFound::inCatalog($model, $skill);
         }
 
-        return $resolved;
+        $candidates = UserProfile::resolveSkills($skill);
+
+        return match ($candidates->count()) {
+            0 => throw ProfileEntryNotFound::inCatalog($model, $skill),
+            1 => $candidates->firstOrFail(),
+            default => throw new AmbiguousProfileEntry($skill, $candidates),
+        };
     }
 }

@@ -13,10 +13,11 @@ use Syriable\UserProfile\Database\Factories\AwardFactory;
 use Syriable\UserProfile\Support\PackageConfig;
 
 /**
- * An award, honour or achievement received by a user.
+ * An award, honour or achievement received by a profile owner.
  *
  * @property int $id
- * @property int|string $user_id
+ * @property string $profileable_type
+ * @property int|string $profileable_id
  * @property string $title
  * @property string|null $issuer
  * @property Carbon|null $date_received

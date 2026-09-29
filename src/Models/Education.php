@@ -16,7 +16,7 @@ use Syriable\UserProfile\Database\Factories\EducationFactory;
 use Syriable\UserProfile\Support\PackageConfig;
 
 /**
- * One entry in a user's education history.
+ * One entry in a profile owner's education history.
  *
  * Source of truth for completion: `end_date` when the exact date is known.
  * `graduation_year` is derived from `end_date` whenever `end_date` is set, and
@@ -25,7 +25,8 @@ use Syriable\UserProfile\Support\PackageConfig;
  * optional expected year.
  *
  * @property int $id
- * @property int|string $user_id
+ * @property string $profileable_type
+ * @property int|string $profileable_id
  * @property string|null $type Application-defined taxonomy, e.g. "university", "bootcamp".
  * @property string $institution_name
  * @property string|null $degree
