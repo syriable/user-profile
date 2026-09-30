@@ -20,6 +20,10 @@
             "role": "Developer"
         }
     ],
+    "support": {
+        "issues": "https://github.com/syriable/user-profile/issues",
+        "source": "https://github.com/syriable/user-profile"
+    },
     "require": {
         "php": "^8.4",
         "illuminate/contracts": "^12.0|^13.0",

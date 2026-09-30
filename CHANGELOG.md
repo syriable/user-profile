@@ -1,50 +1,66 @@
 # Changelog
 
-All notable changes to `syriable/user-profile` will be documented in this file.
+All notable changes to `syriable/user-profile` are documented in this file.
 
-## Unreleased
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Initial release.
+## [Unreleased]
 
-### Polymorphic ownership and owner filtering
+## [1.0.0] - 2026-09-29
 
-Profile data now belongs to any Eloquent model using `HasUserProfile`, through native polymorphic relations, and owners can be filtered by their skills and languages in the database.
+First stable release.
 
-- Added owner filter scopes: `whereSkill`, `whereAnySkill`, `whereAllSkills`, `withoutSkill`, `whereLanguage`, `whereAnyLanguage`, `whereAllLanguages` and `withoutLanguage`, with `atLeast:` proficiency thresholds and `native:` / `primary:` flags.
-- Added `UserProfile::resolveSkills()` / `resolveLanguages()`. Skills and languages can now be referenced by name, alias, slug or code.
-- Added `AmbiguousProfileEntry` for writes through ambiguous aliases, and `IncompatibleProfileOwner` for owner models whose key type doesn't match the configuration.
-- Added `profileSkills()` / `profileLanguages()` on owners and on the catalog models, `profileable()` on owned records, and `deleteProfile()`.
-- Owner deletion now removes the owner's profile data (force delete for soft-deleting owners).
+### Requirements
 
-Breaking changes compared with the earlier development schema:
+- PHP 8.4+
+- Laravel 12.x or 13.x
+- SQLite, MySQL 8+, MariaDB 10.11+ or PostgreSQL 14+
 
-| Before | After |
-| --- | --- |
-| `user.model`, `user.key_type` config | `owner_key_type` |
-| `user_languages`, `user_skills` tables | `profile_languages`, `profile_skills` |
-| `user_id` columns with a foreign key | `profileable_type` + `profileable_id`, cleaned up by the trait |
-| `UserLanguage`, `UserSkill` models | `ProfileLanguage`, `ProfileSkill` |
-| `Language::users()`, `Skill::users()` | `Language::profileLanguages()`, `Skill::profileSkills()` |
-| `$record->user()` | `$record->profileable()` |
-| `whereHasSkill()`, `whereHasLanguage()` | `whereSkill()`, `whereLanguage()` (`atLeast:` argument) |
-| Event property `$user` | `$owner` |
-| String identifiers: skill slug / language code only | name, alias, slug or code (writes must be unambiguous) |
+### Added
 
-If you ran the earlier migration, for each of `user_languages`, `user_skills`, `educations`, `certifications` and `awards`:
+#### Profile owners
 
-1. Drop the `user_id` foreign key.
-2. Add `profileable_type` and fill it with your user model's morph class.
-3. Rename `user_id` to `profileable_id`.
-4. Rebuild the primary key and indexes to match the new migration.
-5. Rename `user_languages` / `user_skills` to `profile_languages` / `profile_skills`.
+- `HasUserProfile` trait that turns any Eloquent model (for example `User`, `Seller` or `Company`) into a profile owner. It uses native polymorphic relations on `profileable_type` / `profileable_id`.
+- Relationships: `languages()`, `skills()`, `educations()`, `certifications()`, `awards()`, plus the pivot-row relations `profileLanguages()` and `profileSkills()`.
+- Integer, UUID and ULID owner keys, selected with the `owner_key_type` option. Owner models whose key type doesn't match throw `IncompatibleProfileOwner`.
+- Compatibility with application morph maps. The package registers none of its own.
+- Automatic cleanup of an owner's profile when the owner is deleted, or force deleted for soft-deleting models. `deleteProfile()` is available for query-builder deletes.
 
-- `HasUserProfile` trait for any Eloquent user model (int, UUID or ULID keys).
-- Language catalog with BCP 47 / ISO 639-1 / ISO 639-3 codes and a `user_languages` pivot (proficiency, native and primary flags).
-- Skill catalog with optional categories, aliases and a `user_skills` pivot (proficiency, years of experience, primary flag).
-- Configurable, ordered proficiency scales for languages and skills, with translatable labels and CEFR labels included.
-- Alias-aware, portable SQL search for skills and languages with deterministic ranking and pagination.
-- Pluggable search resolvers via `UserProfile::registerSkillSearchResolver()` / `registerLanguageSearchResolver()`.
-- Education history, certifications and awards with model-level validation.
-- Feature toggles, configurable table names and model classes.
-- Events for adding, updating and removing profile languages and skills.
-- Starter seeders for languages and skills.
+#### Languages and skills
+
+- Shared language catalog with BCP 47 codes, optional ISO 639-1 / ISO 639-3 codes, native names and an active flag.
+- Shared skill catalog with generated slugs, optional categories, and aliases that can be scoped to a locale.
+- `addLanguage()`, `updateLanguage()`, `removeLanguage()` and `hasLanguage()`, with proficiency, native and primary flags.
+- `addSkill()`, `updateSkill()`, `removeSkill()` and `hasSkill()`, with proficiency, years of experience and a primary flag.
+- `UserProfile::resolveSkills()` / `resolveLanguages()`, so skills and languages can be referenced by name, alias, slug or code.
+- `AmbiguousProfileEntry`, thrown when a write uses a term that names several catalog entries. The package never picks one on its own.
+
+#### Proficiency
+
+- Configurable, ordered proficiency scales for languages and skills (`UserProfile::languageProficiency()` / `skillProficiency()`), with ranking, comparison and `atLeast()` thresholds.
+- Translatable labels, including CEFR (A1–C2) labels.
+- Native speakers are marked with a separate `is_native` flag, not a proficiency level.
+
+#### Searching and filtering
+
+- Catalog search: `UserProfile::searchSkills()` and `searchLanguages()` return query builders. Search is alias-aware and case- and whitespace-insensitive, supports exact and partial matching, ranks results in a fixed order and paginates in the database.
+- Owner filter scopes: `whereSkill()`, `whereAnySkill()`, `whereAllSkills()` and `withoutSkill()`, plus `whereLanguage()`, `whereAnyLanguage()`, `whereAllLanguages()` and `withoutLanguage()`. They accept `atLeast:`, `native:` and `primary:` options, run as `EXISTS` queries in the database, and never return duplicate owners.
+- Pluggable catalog search through `UserProfile::registerSkillSearchResolver()` / `registerLanguageSearchResolver()`.
+
+#### Education, certifications and awards
+
+- Education history with a single source of truth for completion dates, ongoing studies and an application-defined `type`.
+- Certifications with optional credential IDs and verification URLs, expiration handling, and `valid()` / `expired()` scopes.
+- Awards with optional issuer, date, description and link.
+- Validation on every package model before saving. Each model's `rules()` can be reused in form requests.
+
+#### Tooling
+
+- Events: `SkillAdded`, `SkillUpdated`, `SkillRemoved`, `LanguageAdded`, `LanguageUpdated` and `LanguageRemoved`.
+- Feature toggles, configurable table names and replaceable model classes.
+- `user-profile:install` command, publishable config, migration and translations.
+- Starter `LanguageSeeder` and `SkillSeeder`, and model factories.
+
+[Unreleased]: https://github.com/syriable/user-profile/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/syriable/user-profile/releases/tag/1.0.0
